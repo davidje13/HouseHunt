@@ -1,0 +1,18 @@
+{
+  "name": "house-hunt",
+  "version": "1.0.0",
+  "description": "House search with advanced filtering",
+  "private": true,
+  "scripts": {
+    "load": "src/load/index.mjs",
+    "process": "src/process/index.mjs",
+    "start": "src/start/index.mjs"
+  },
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.1",
+    "pg": "^8.5.1",
+    "pg-cursor": "^2.5.2"
+  }
+}
