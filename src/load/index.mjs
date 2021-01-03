@@ -69,6 +69,15 @@ async function run() {
   }
 }
 
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection', reason);
+  process.exitCode = 1;
+});
+process.on('uncaughtException', (e) => {
+  console.error('uncaughtException', e);
+  process.exitCode = 1;
+});
+
 run().catch((e) => {
   console.error(e);
   process.exitCode = 1;

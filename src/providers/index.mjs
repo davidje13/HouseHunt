@@ -1,3 +1,3 @@
-import zoopla from './zoopla.mjs';
+import zoopla from './zoopla/index.mjs';
 
 export default [zoopla];

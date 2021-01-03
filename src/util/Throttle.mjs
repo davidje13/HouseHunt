@@ -24,6 +24,9 @@ export default class Throttle {
       while (this.calls.length > 0 && this.calls[0] <= cutoff) {
         this.calls.shift();
       }
+      if (this.calls.length >= this.limit) {
+        console.warn(`Throttle woke spuriously at ${new Date().toISOString()}, oldest action from ${new Date(this.calls[0]).toISOString()}`);
+      }
     }
     this.calls.push(Date.now());
   }
