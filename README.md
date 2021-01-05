@@ -34,6 +34,9 @@ Once you have loaded new data, you should apply processing (this is much faster)
 ./src/process/index.mjs
 ```
 
+You do not need to wait for all the data to load to run this command, and it
+can be run repeatedly as more data is loaded.
+
 ## Running
 
 Once you have loaded some data, you can start the application:
