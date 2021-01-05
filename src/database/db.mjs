@@ -32,7 +32,10 @@ export default class DB {
         listed TIMESTAMP WITHOUT TIME ZONE NULL DEFAULT NULL,
         type TEXT NULL DEFAULT NULL,
         price DOUBLE PRECISION NULL DEFAULT NULL,
+        share DOUBLE PRECISION NULL DEFAULT NULL,
+        ownership TEXT NULL DEFAULT NULL,
         newbuild BOOLEAN NULL DEFAULT NULL,
+        investment BOOLEAN NULL DEFAULT NULL,
         beds SMALLINT NULL DEFAULT NULL,
         latitude DOUBLE PRECISION NULL DEFAULT NULL,
         longitude DOUBLE PRECISION NULL DEFAULT NULL,
@@ -43,11 +46,7 @@ export default class DB {
         UNIQUE (provider_id, external_id)
       )
     `);
-    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_price ON properties (price)');
-    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_beds ON properties (beds, price)');
-    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_lat ON properties (latitude)');
-    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_lon ON properties (longitude)');
-    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_type ON properties (type)');
+    await this.pool.query('CREATE INDEX IF NOT EXISTS properties_updated ON properties (updated)');
   }
 
   async getProviderState(providerName) {
@@ -114,11 +113,11 @@ export default class DB {
     }));
   }
 
-  async *getAllLocations() {
+  async *getAllBasic() {
     const client = await this.pool.connect();
     try {
       const cursor = client.query(new Cursor(
-        'SELECT id, latitude, longitude FROM properties WHERE NOT dirty',
+        'SELECT id, latitude, longitude, type, price, share, ownership, newbuild, investment, beds FROM properties WHERE NOT dirty',
         [],
         { rowMode: 'array' },
       ));
@@ -130,7 +129,7 @@ export default class DB {
             break;
           }
           for (const item of batch) {
-            yield { id: item[0], lat: item[1], lon: item[2] };
+            yield { id: item[0], lat: item[1], lon: item[2], type: item[3], price: item[4], share: item[5], ownership: item[6], newbuild: item[7], investment: item[8], beds: item[9] };
           }
         }
       } finally {
@@ -141,7 +140,7 @@ export default class DB {
     }
   }
 
-  async recordProcessed(itemId, { listed, type, price, newbuild, beds, latitude, longitude, extracted, thumbnail, image, url }) {
+  async recordProcessed(itemId, { listed, type, price, share, ownership, newbuild, investment, beds, latitude, longitude, extracted, thumbnail, image, url }) {
     await this.pool.query({
       name: 'record_processed',
       text: `
@@ -150,14 +149,17 @@ export default class DB {
           listed=$2,
           type=$3,
           price=$4,
-          newbuild=$5,
-          beds=$6,
-          latitude=$7,
-          longitude=$8,
-          extracted=$9::hstore,
-          thumbnail=$10,
-          image=$11,
-          url=$12
+          share=$5,
+          ownership=$6,
+          newbuild=$7,
+          investment=$8,
+          beds=$9,
+          latitude=$10,
+          longitude=$11,
+          extracted=$12::hstore,
+          thumbnail=$13,
+          image=$14,
+          url=$15
         WHERE id=$1
       `,
       values: [
@@ -165,7 +167,10 @@ export default class DB {
         listed?.toUTCString(),
         type,
         price,
+        share,
+        ownership,
         newbuild,
+        investment,
         beds,
         latitude,
         longitude,

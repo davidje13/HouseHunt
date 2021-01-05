@@ -43,6 +43,7 @@ export const strategyBands = ({
   minStep,
   softEnd,
   end,
+  delta = 0,
   extras = {},
 }) => function* (filter, progress = {}) {
   let {
@@ -58,7 +59,7 @@ export const strategyBands = ({
       subFilter[minKey] = min;
     }
     if (max < EFFECTIVELY_INF) {
-      subFilter[maxKey] = max;
+      subFilter[maxKey] = max - delta;
     }
     const { total, tooMany } = yield {
       progress: { min, max },

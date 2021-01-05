@@ -14,7 +14,6 @@ import processData from './process.mjs';
 // - lat/lon min/max lookup includes bleed edge of unknown size
 // - lat/lon min/max lookup with radius results in a point lookup at the centre with the given radius
 // - chain_free=false filter does nothing
-// - maximum_price is EXCLUSIVE, not inclusive
 
 const FILTER = {
   order_by: 'age',
@@ -53,11 +52,12 @@ function getFullListings(progress, setProgress) {
             minStep: 1000,
             softEnd: 1000000,
             end: Number.POSITIVE_INFINITY,
+            delta: 1, // max is inclusive so avoid overlap
           }),
         ],
       },
       {
-        filter: { maximum_price: 1 },
+        filter: { maximum_price: 1 }, // TODO: doesn't work?
         strategies: [
           strategyApplyIfNeeded(strategyBands({
             name: 'latitudes',

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="format-detection" content="telephone=no">
+<title>House Hunt</title>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.5.0/css/ol.css" />
+<link rel="stylesheet" type="text/css" href="/index.css" />
+<script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.5.0/build/ol.js"></script>
+<script type="module" src="/index.mjs"></script>
+</head>
+<body>
+  <article>
+    <header>
+      <h1>House Hunt</h1>
+      <img class="source" src="/powered-by-zoopla-150x73.png" title="Property information powered by Zoopla" alt="Property information powered by Zoopla" />
+    </header>
+    <section id="side">
+      <form id="filters">
+        <p>
+          <label>Price min &pound;<input type="number" name="price-min" step="1" min="0" value="0" placeholder="0" /></label>
+          <label>max &pound;<input type="number" name="price-max" step="1" min="0" value="" placeholder="no maximum" /></label>
+          <label>
+            Shared ownership?
+            <select name="shared">
+              <option value="" selected>Include</option>
+              <option value="full">Show (guessed) full price</option>
+              <option value="false">Exclude</option>
+            </select>
+          </label>
+        </p>
+        <p>
+          <label>
+            Ownership?
+            <select name="ownership">
+              <option value="freehold">Freehold</option>
+              <option value="freehold_share">Freehold or Freehold Share</option>
+              <option value="" selected>All (Freehold or Leasehold)</option>
+            </select>
+          </label>
+          <label>
+            Investment?
+            <select name="investment">
+              <option value="" selected>All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+          <label>
+            New build?
+            <select name="new">
+              <option value="" selected>All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+        </p>
+        <p>
+          <label>
+            Beds min
+            <select name="beds-min">
+              <option value="" selected>No minimum</option>
+              <option value="0">Studio</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+            </select>
+          </label>
+          <label>
+            max
+            <select name="beds-max">
+              <option value="0">Studio</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="" selected>No maximum</option>
+            </select>
+          </label>
+        </p>
+        <p>Total properties: <span id="total">loading&hellip;</span></p>
+      </form>
+    </section>
+    <section id="map"></section>
+  </article>
+</body>
+</html>

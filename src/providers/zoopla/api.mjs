@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import fetch, { FetchError } from 'node-fetch';
 import Throttle from '../../util/Throttle.mjs';
 
 const API_BASE = 'https://api.zoopla.co.uk/api/v1';
@@ -26,12 +26,22 @@ export async function callAPI(api, params) {
       await new Promise((resolve) => setTimeout(resolve, RETRY_MIN_DELAY));
       continue;
     }
+    console.log('API call completed');
     if (res.ok) {
       let json;
+      console.log('extracting JSON');
       try {
         json = await res.json();
+        console.log('.json() call completed');
       } catch (e) {
+        if (e instanceof FetchError) {
+          console.warn(`Failed to load ${maskedUrl}; error: ${e.message}`);
+          await new Promise((resolve) => setTimeout(resolve, RETRY_MIN_DELAY));
+          continue;
+        }
+        console.log('failed to parse JSON', e);
         const text = await getText(res);
+        console.log('got', text);
         throw new Error(`JSON parse error from ${maskedUrl}; error: ${e.message}; raw: ${text}`);
       }
       if (json.error_code) {
@@ -39,7 +49,9 @@ export async function callAPI(api, params) {
       }
       return json;
     }
+    console.log('extracting error text');
     const text = await getText(res);
+    console.log('got error text', text);
     if (res.status === 403 && text.includes('Developer Over Rate')) {
       // We have reached the API rate limit
       console.warn(`${new Date().toISOString()}: API rate limit reached`);

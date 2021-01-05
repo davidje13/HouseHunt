@@ -1,59 +1,115 @@
+function getShare(normDesc) {
+  const share1 = normDesc.match(/([0-9.]+) ?(?:%|percent) ?(?:equity|share)/i);
+  if (share1) {
+    return Number(share1[1]) * 0.01;
+  }
+  const share2 = normDesc.match(/shared? (?:available|of|ownership(?: of)?) ?([0-9.]+) ?(?:%|percent)/i);
+  if (share2) {
+    return Number(share2[1]) * 0.01;
+  }
+  return null;
+}
+
 export function patchFromDescription(details, description) {
-  // TODO
+  const normDesc = description
+    .replace(/&[a-zA-Z0-9#]+;/g, '')
+    .replace(/<\/?[a-zA-Z0-9]+>/g, '')
+    .replace(/('|\u2019)/g, '')
+    .replace(/[^a-zA-Z0-9%]+/g, ' ');
 
   if (details.type === 'unknown') {
-    if (/boat/i.test(description)) {
+    if (/boat/i.test(normDesc)) {
       details.type = 'boat';
-    } else if (/mobile/i.test(description)) {
+    } else if (/mobile/i.test(normDesc)) {
       details.type = 'mobile';
-    } else if (/cottage/i.test(description)) {
+    } else if (/cottage/i.test(normDesc)) {
       details.type = 'holiday_cottage';
-    } else if (/lodge/i.test(description)) {
+    } else if (/lodge/i.test(normDesc)) {
       details.type = 'holiday_lodge';
-    } else if (/chalet/i.test(description)) {
+    } else if (/chalet/i.test(normDesc)) {
       details.type = 'holiday_chalet';
-    } else if (/villa/i.test(description)) {
+    } else if (/villa/i.test(normDesc)) {
       details.type = 'holiday_villa';
-    } else if (/office space/i.test(description)) {
+    } else if (/office space/i.test(normDesc)) {
       details.type = 'business_office';
-    } else if (/studio (flat|appartment)/i.test(description)) {
+    } else if (/studio (flat|appartment)/i.test(normDesc)) {
       details.type = 'flat_studio';
-    } else if (/appartment/i.test(description)) {
+    } else if (/appartment/i.test(normDesc)) {
       details.type = 'flat';
-    } else if (/penthouse/i.test(description)) {
+    } else if (/penthouse/i.test(normDesc)) {
       details.type = 'flat';
-    } else if (/semi[- ]*detached/i.test(description)) {
+    } else if (/semi ?detached/i.test(normDesc)) {
       details.type = 'house_semi_detached';
-    } else if (/detached/i.test(description)) {
+    } else if (/detached/i.test(normDesc)) {
       details.type = 'house_detached';
-    } else if (/end[- ]*terraced?/i.test(description)) {
+    } else if (/end ?terraced?/i.test(normDesc)) {
       details.type = 'house_end_terrace';
-    } else if (/terraced?/i.test(description)) {
+    } else if (/terraced?/i.test(normDesc)) {
       details.type = 'house_terraced';
-    } else if (/(land|acre)?/i.test(description)) {
+    } else if (/(land|acre)?/i.test(normDesc)) {
       details.type = 'land';
     }
   }
 
   if (details.type === 'house_town') {
-    if (/semi[- ]*detached/i.test(description)) {
+    if (/semi ?detached/i.test(normDesc)) {
       details.type = 'house_semi_detached';
-    } else if (/detached/i.test(description)) {
+    } else if (/detached/i.test(normDesc)) {
       details.type = 'house_detached';
     }
   }
 
+  if (
+    /(current(ly)?|fully) tenanted/i.test(normDesc) ||
+    /investment( purposes)? (only|property|house|flat|appartment)/i.test(normDesc) ||
+    /tenanted to/i.test(normDesc)
+  ) {
+    details.investment = true;
+  }
+
+  if (!details.ownership) {
+    if (/shared?( of)?( the)? free ?hold/i.test(normDesc) || /free ?hold( is)? share/i.test(normDesc)) {
+      details.ownership = 'freehold_share';
+    } else if (/lease ?hold/i.test(normDesc)) {
+      details.ownership = 'leasehold';
+    } else if (/free ?hold/i.test(normDesc)) {
+      details.ownership = 'freehold';
+    } else if (details.type.startsWith('flat')) {
+      details.ownership = 'leasehold';
+    }
+  }
+
   if (details.type.startsWith('flat')) {
-    const floor = description.match(/([0-9]+)(st|nd|rd|th) floor/);
+    const floor = normDesc.match(/([0-9]+)(?:st|nd|rd|th) floor/i);
     if (floor) {
       details.extracted.set('floor', Number(floor[1]));
     }
   }
 
+  if (details.share === 1) {
+    const share = getShare(normDesc);
+    if (share !== null) {
+      details.share = share;
+      if (!details.ownership) {
+        details.ownership = 'leasehold';
+      }
+    }
+  }
+
+  if (!details.ownership) {
+    // assume (perhaps naïvely) that no listed ownership type => freehold
+    details.ownership = 'freehold';
+  }
+
   if (details.type === 'flat_studio') {
     details.beds = 0;
   } else if (!details.beds) {
-    details.beds = -1;
+    const beds = normDesc.match(/([0-9]+) bed/i);
+    if (beds) {
+      details.beds = Number(beds[1]);
+    } else {
+      details.beds = -1;
+    }
   }
   return details;
 }

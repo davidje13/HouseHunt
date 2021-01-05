@@ -5,7 +5,7 @@ import express from 'express';
 import { dirname, join } from 'path';
 import DB from '../database/db.mjs';
 
-const baseDir = join(dirname(new URL(import.meta.url).pathname), '..');
+const curDir = dirname(new URL(import.meta.url).pathname);
 
 const app = express();
 const db = new DB();
@@ -14,14 +14,14 @@ app.get('/api/locations', async (req, res) => {
   try {
     res.header('Content-Type', 'application/json; charset=utf-8');
     let first = true;
-    for await (const { id, lat, lon } of db.getAllLocations()) {
+    for await (const item of db.getAllBasic()) {
       if (first) {
         first = false;
         res.write('{"items":[');
       } else {
         res.write(',');
       }
-      res.write(JSON.stringify({ id, lat, lon }));
+      res.write(JSON.stringify(item));
     }
     if (first) {
       res.send('{"items":[]}');
@@ -40,15 +40,15 @@ const CSP = [
   "base-uri 'self'",
   "default-src 'self'",
   "object-src 'none'",
-  "script-src 'self'",
-  "style-src 'self'",
+  "script-src 'self' https://cdn.jsdelivr.net blob:",
+  "style-src 'self' https://cdn.jsdelivr.net",
   "connect-src 'self'",
-  "img-src 'self'",
+  "img-src 'self' https://*.tile.openstreetmap.org",
   "form-action 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
 
-app.use(express.static(join(baseDir, 'frontend'), {
+app.use(express.static(join(curDir, 'frontend'), {
   setHeaders: (res) => {
     res.header('x-frame-options', 'DENY');
     res.header('x-xss-protection', '1; mode=block');

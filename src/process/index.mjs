@@ -7,7 +7,7 @@ async function processProvider(db, provider) {
   const providerState = await db.getProviderState(provider.name);
   let count = 0;
   while (true) {
-    const batch = await db.getDirtyBatch(providerState.id, 100);
+    const batch = await db.getDirtyBatch(providerState.id, 10000);
     if (!batch.length) {
       break;
     }
