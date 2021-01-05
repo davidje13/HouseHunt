@@ -1,9 +1,24 @@
+function getFullValue(normDesc) {
+  const price1 = normDesc.match(/(?:full|total)(?: ?market)? (value|price)(?: of)?([0-9 ]+)(?:[0-9]{2} ?(?:%|percent))/i);
+  if (price1) {
+    return Number(price1[1]);
+  }
+  const price2 = normDesc.match(/(?:full|total)(?: ?market)? (value|price)(?: of)?([0-9 ]+)/i);
+  if (price2) {
+    return Number(price2[1]);
+  }
+  return null;
+}
+
 function getShare(normDesc) {
-  const share1 = normDesc.match(/([0-9.]+) ?(?:%|percent) ?(?:equity|share)/i);
+  if (/100 ?(?:%|percent) ?(?:equity|share)/i.test(normDesc)) {
+    return 1;
+  }
+  const share1 = normDesc.match(/([0-9]{1,2}) ?(?:%|percent) ?(?:equity|share)/i);
   if (share1) {
     return Number(share1[1]) * 0.01;
   }
-  const share2 = normDesc.match(/shared? (?:available|of|ownership(?: of)?) ?([0-9.]+) ?(?:%|percent)/i);
+  const share2 = normDesc.match(/shared? (?:available|of|ownership(?: of)?) ?([0-9]{1,2}) ?(?:%|percent)/i);
   if (share2) {
     return Number(share2[1]) * 0.01;
   }
@@ -15,6 +30,7 @@ export function patchFromDescription(details, description) {
     .replace(/&[a-zA-Z0-9#]+;/g, '')
     .replace(/<\/?[a-zA-Z0-9]+>/g, '')
     .replace(/('|\u2019)/g, '')
+    .replace(/\.0+/g, '')
     .replace(/[^a-zA-Z0-9%]+/g, ' ');
 
   if (details.type === 'unknown') {
@@ -86,12 +102,25 @@ export function patchFromDescription(details, description) {
     }
   }
 
+  if (!details.price) {
+    const value = getFullValue(normDesc);
+    if (value) {
+      details.price = value;
+      details.share = 1;
+    }
+  }
+
   if (details.share === 1) {
-    const share = getShare(normDesc);
-    if (share !== null) {
-      details.share = share;
-      if (!details.ownership) {
-        details.ownership = 'leasehold';
+    const value = getFullValue(normDesc);
+    if (value && value > details.price) {
+      details.share = details.price / value;
+    } else {
+      const share = getShare(normDesc);
+      if (share > 0 && share < 1) {
+        details.share = share;
+        if (!details.ownership) {
+          details.ownership = 'leasehold';
+        }
       }
     }
   }
