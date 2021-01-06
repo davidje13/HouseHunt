@@ -14,6 +14,8 @@ function normalise(s) {
   return s.toLowerCase().replace(/[^a-z]+/g, '_');
 }
 
+const SHARED_MODIFIERS = ['shared_ownership', 'shared_equity', 'equity_loan', 'part_buy_part_rent'];
+
 function mapPropertyType(type) {
   const norm = normalise(type);
   switch (norm) {
@@ -22,6 +24,7 @@ function mapPropertyType(type) {
     case 'land':                return 'land';
     case 'parking_garage':      return 'land_parking';
     case 'farm':                return 'land_farm';
+    case 'finca':               return 'land_farm';
     case 'equestrian_property': return 'land_stables';
 
     case 'mobile_park_home': return 'mobile';
@@ -50,15 +53,20 @@ function mapPropertyType(type) {
     case 'hotel_guest_house':   return 'business_hotel';
     case 'leisure_hospitality': return 'business_leisure';
     case 'retail_premises':     return 'business_shop';
+    case 'restaurant_cafe':     return 'business_food';
+    case 'pub_bar':             return 'business_pub';
     case 'block_of_flats':      return 'business_flats';
     case 'office':              return 'business_office';
+    case 'industrial':          return 'business_industrial';
+    case 'light_industrial':    return 'business_industrial';
+    case 'warehouse':           return 'business_warehouse';
 
     case 'cottage': return 'holiday_cottage';
     case 'lodge':   return 'holiday_lodge';
     case 'chalet':  return 'holiday_chalet';
     case 'villa':   return 'holiday_villa';
 
-    default: return norm;
+    default: return 'unknown_' + norm;
   }
 }
 
@@ -108,7 +116,7 @@ export default function processData(filterName, raw) {
     listed: fromAPIDate(data.first_published_date),
     type: mapPropertyType(data.property_type),
     price,
-    share: 1,
+    share: SHARED_MODIFIERS.includes(data.price_modifier) ? 0 : 1,
     ownership: null,
     investment: false,
     retirement: false,

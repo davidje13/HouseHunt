@@ -1,5 +1,3 @@
-//import Image from './Image.mjs';
-
 const dpr = window.devicePixelRatio;
 window.devicePixelRatio = 1;
 
@@ -31,38 +29,6 @@ function makeCanvas(w, h) {
   canvas.style.height = h + 'px';
   return canvas;
 }
-
-//function drawMap(target, items, lonL, latT, lonR, latB) {
-//  const ww = target.width;
-//  const hh = target.height;
-//  const scX = ww / (lonR - lonL);
-//  const scY = hh / (latB - latT);
-//  for (const item of items) {
-//    const x = Math.floor((item.lon - lonL) * scX);
-//    const y = Math.floor((item.lat - latT) * scY);
-//    if (x >= 0 && x < ww && y >= 0 && y < hh) {
-//      target.inc(x, y, 0, 1.0);
-//    }
-//  }
-//}
-
-//function renderData(canvas, data) {
-//  const ww = data.width;
-//  const hh = data.height;
-//  const ctx = canvas.getContext('2d');
-//  const ctxImg = ctx.createImageData(ww, hh);
-//  for (let y = 0; y < hh; y += 1) {
-//    for (let x = 0; x < ww; x += 1) {
-//      const p = (y * ww + x) << 2;
-//      const v = data.get(x, y, 0);
-//      ctxImg.data[p  ] = v / 2.0 * 255.0;
-//      ctxImg.data[p|1] = v / 12.0 * 255.0;
-//      ctxImg.data[p|2] = 255;
-//      ctxImg.data[p|3] = v * 6.0 * 255.0;
-//    }
-//  }
-//  ctx.putImageData(ctxImg, 0, 0);
-//}
 
 function triState(v) {
   if (!v) {
@@ -126,15 +92,15 @@ function renderPriceHistogram(canvas, items, { bucketCount, bucketMax, minPrice,
 
 function renderCard(details) {
   const img = details.image || details.thumbnail;
-  return make('div', { class: 'details' }, [
+  const link = make('a', { href: details.url, target: '_blank', rel: 'noopener noreferrer' }, [make('div', { class: 'details' }, [
     make('h2', {}, [details.extracted?.address ?? details.id]),
     make('span', { class: 'price' }, [money(details.price / details.share)]),
     make('span', { class: 'info' }, [
       img ? make('img', { src: img, rel: 'noreferrer' }) : null,
       JSON.stringify(details, null, 1),
-      make('a', { href: details.url, target: '_blank', rel: 'noopener noreferrer' }, ['See Property']),
     ]),
-  ]);
+  ])]);
+  return link;
 }
 
 async function init() {
@@ -155,7 +121,11 @@ async function init() {
     });
     const initialValue = initial.get(input.getAttribute('name'));
     if (initialValue !== undefined) {
-      input.value = initialValue;
+      if (input.getAttribute('type') === 'checkbox') {
+        input.checked = (initialValue === 'true');
+      } else {
+        input.value = initialValue;
+      }
     }
   }
 
@@ -186,7 +156,11 @@ async function init() {
   function refreshFilters() {
     const savedValues = new URLSearchParams();
     for (const input of filters.querySelectorAll('input,select')) {
-      savedValues.append(input.getAttribute('name'), input.value);
+      let value = input.value;
+      if (input.getAttribute('type') === 'checkbox') {
+        value = input.checked ? 'true' : 'false';
+      }
+      savedValues.append(input.getAttribute('name'), value);
     }
     document.location.hash = savedValues.toString();
 
@@ -199,11 +173,25 @@ async function init() {
     const ownership = filters.querySelector('[name="ownership"]').value;
     const shared = filters.querySelector('[name="shared"]').value;
     const newBuild = triState(filters.querySelector('[name="new"]').value);
+    const types = [...filters.querySelectorAll('.type-pickers input')]
+      .filter((i) => i.checked)
+      .map((i) => i.getAttribute('name').substr(5));
+    types.push('unknown');
     updateFilter((i) => {
-      let price = i.price;
+      let { type, price } = i;
       if (shared === 'full') {
         price /= i.share;
       } else if (shared === 'false' && i.share !== 1) {
+        return false;
+      }
+      const match = (
+        price >= minPrice && price <= maxPrice &&
+        i.beds >= minBeds && i.beds <= maxBeds &&
+        (retirement === null || i.retirement === retirement) &&
+        (investment === null || i.investment === investment) &&
+        (newBuild === null || i.newbuild === newBuild)
+      );
+      if (!match) {
         return false;
       }
       if (ownership && ownership !== i.ownership) {
@@ -213,13 +201,7 @@ async function init() {
           return false;
         }
       }
-      return (
-        price >= minPrice && price <= maxPrice &&
-        i.beds >= minBeds && i.beds <= maxBeds &&
-        (retirement === null || i.retirement === retirement) &&
-        (investment === null || i.investment === investment) &&
-        (newBuild === null || i.newbuild === newBuild)
-      );
+      return types.some((t) => type.startsWith(t));
     }, minPrice, maxPrice, shared === 'full');
   }
   refreshFilters();
@@ -243,7 +225,7 @@ async function init() {
     style: {
       symbol: {
         symbolType: 'circle',
-        size: ['interpolate', ['exponential', 0.8], ['zoom'], 11, 3, 19, 30],
+        size: ['interpolate', ['exponential', 0.8], ['zoom'], 11, 5, 19, 30],
         color: '#FFFFFF',
       },
     },
@@ -322,19 +304,6 @@ async function init() {
     });
     overlay.setPosition(geometry.getCoordinates());
   });
-
-  //const canvas = makeCanvas(600, 750);
-  //document.body.appendChild(canvas);
-
-  //const raw = new Image(canvas.width, canvas.height, 1);
-
-  //perFrame(batched(allItems, 10000), (itemsBatch) => {
-  //  drawMap(raw, itemsBatch, -10, 60, 5, 48);
-
-  //  const data = new Image(raw);
-  //  data.blur(0.4);
-  //  renderData(canvas, data);
-  //});
 }
 
 init();
