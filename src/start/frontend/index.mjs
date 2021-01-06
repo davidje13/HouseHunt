@@ -8,7 +8,7 @@ function make(tag, attrs = {}, children = []) {
   for (const c of children) {
     if (typeof c === 'string') {
       o.appendChild(document.createTextNode(c));
-    } else {
+    } else if (c) {
       o.appendChild(c);
     }
   }
@@ -16,6 +16,10 @@ function make(tag, attrs = {}, children = []) {
     o.setAttribute(k, v);
   });
   return o;
+}
+
+function money(v) {
+  return v.toLocaleString(undefined, { style: 'currency', currency: 'GBP', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function makeCanvas(w, h) {
@@ -120,6 +124,19 @@ function renderPriceHistogram(canvas, items, { bucketCount, bucketMax, minPrice,
   return { bucketCount, bucketMax, minPrice, maxPrice };
 }
 
+function renderCard(details) {
+  const img = details.image || details.thumbnail;
+  return make('div', { class: 'details' }, [
+    make('h2', {}, [details.extracted?.address ?? details.id]),
+    make('span', { class: 'price' }, [money(details.price / details.share)]),
+    make('span', { class: 'info' }, [
+      img ? make('img', { src: img, rel: 'noreferrer' }) : null,
+      JSON.stringify(details, null, 1),
+      make('a', { href: details.url, target: '_blank', rel: 'noopener noreferrer' }, ['See Property']),
+    ]),
+  ]);
+}
+
 async function init() {
   const side = document.getElementById('side');
   side.appendChild(make('h2', {}, ['Prices']));
@@ -151,6 +168,7 @@ async function init() {
   function replaceMapItems(items) {
     mapItems.clear();
     mapItems.addFeatures(items.map((item) => new ol.Feature({
+      id: item.id,
       geometry: new ol.geom.Point(ol.proj.fromLonLat([item.lon, item.lat])),
     })));
   }
@@ -176,6 +194,7 @@ async function init() {
     const maxPrice = Number(filters.querySelector('[name="price-max"]').value || 'Infinity');
     const minBeds = Number(filters.querySelector('[name="beds-min"]').value || '-1');
     const maxBeds = Number(filters.querySelector('[name="beds-max"]').value || 'Infinity');
+    const retirement = triState(filters.querySelector('[name="retirement"]').value);
     const investment = triState(filters.querySelector('[name="investment"]').value);
     const ownership = filters.querySelector('[name="ownership"]').value;
     const shared = filters.querySelector('[name="shared"]').value;
@@ -197,12 +216,51 @@ async function init() {
       return (
         price >= minPrice && price <= maxPrice &&
         i.beds >= minBeds && i.beds <= maxBeds &&
+        (retirement === null || i.retirement === retirement) &&
         (investment === null || i.investment === investment) &&
         (newBuild === null || i.newbuild === newBuild)
       );
     }, minPrice, maxPrice, shared === 'full');
   }
   refreshFilters();
+
+  const farPointLayer = new ol.layer.WebGLPoints({
+    source: mapItems,
+    maxZoom: 11,
+    style: {
+      symbol: {
+        symbolType: 'square',
+        size: 0.5,
+        color: '#FFFFFF',
+      },
+    },
+    disableHitDetection: true,
+  });
+
+  const nearPointLayer = new ol.layer.WebGLPoints({
+    source: mapItems,
+    minZoom: 11,
+    style: {
+      symbol: {
+        symbolType: 'circle',
+        size: ['interpolate', ['exponential', 0.8], ['zoom'], 11, 3, 19, 30],
+        color: '#FFFFFF',
+      },
+    },
+  });
+
+  const overlayBox = make('ul');
+  const overlay = new ol.Overlay({
+    element: make('section', { class: 'popup' }, [overlayBox]),
+    positioning: 'bottom-center',
+    offset: [0, -15],
+    autoPan: {
+      animation: {
+        duration: 250,
+      },
+      margin: 20,
+    },
+  });
 
   const map = new ol.Map({
     target: 'map',
@@ -215,35 +273,54 @@ async function init() {
         }),
         opacity: 0.3,
       }),
-      new ol.layer.WebGLPoints({
-        source: mapItems,
-        maxZoom: 11,
-        style: {
-          symbol: {
-            symbolType: 'square',
-            size: 0.5,
-            color: '#FFFFFF',
-          },
-        },
-        disableHitDetection: true,
-      }),
-      new ol.layer.WebGLPoints({
-        source: mapItems,
-        minZoom: 11,
-        style: {
-          symbol: {
-            symbolType: 'circle',
-            size: ['interpolate', ['exponential', 0.8], ['zoom'], 11, 3, 19, 30],
-            color: '#FFFFFF',
-          },
-        },
-      }),
+      farPointLayer,
+      nearPointLayer,
+    ],
+    overlays: [
+      overlay,
     ],
     view: new ol.View({
       center: ol.proj.fromLonLat([-3.44, 55.38]),
       zoom: 5.5,
       maxZoom: 19,
     }),
+  });
+
+  map.on('click', (e) => {
+    const features = map.getFeaturesAtPixel(e.pixel, { layerFilter: (l) => l === nearPointLayer });
+    if (!features.length) {
+      overlay.setPosition(undefined);
+      return;
+    }
+    // webglpointlayer hit test is only capable of returning 1 match...
+    const { id, geometry } = features[0].getProperties();
+    const details0 = filteredItems.find((i) => i.id === id);
+    if (!details0) {
+      console.warn(`Failed to find property details for ${id}`);
+      return;
+    }
+    // ...but we find nearby items to show as well
+    const details = filteredItems.filter((i) => ((i.lat - details0.lat) ** 2 + (i.lon - details0.lon) ** 2 < 0.0001 ** 2));
+
+    overlayBox.innerText = '';
+    details.forEach((detail) => {
+      const container = make('li');
+      container.appendChild(renderCard(detail));
+      if (!detail.full) {
+        fetch(`/api/locations/${encodeURIComponent(id)}`)
+          .then((d) => d.json())
+          .then((d) => {
+            Object.assign(detail, d);
+            detail.full = true;
+            container.innerText = '';
+            container.appendChild(renderCard(detail));
+            overlay.setPosition(geometry.getCoordinates());
+          })
+          .catch((e) => console.warn(`Failed to load full property details for ${id}`, e));
+      }
+      overlayBox.appendChild(container);
+    });
+    overlay.setPosition(geometry.getCoordinates());
   });
 
   //const canvas = makeCanvas(600, 750);

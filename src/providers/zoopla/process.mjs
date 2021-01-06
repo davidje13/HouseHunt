@@ -111,6 +111,7 @@ export default function processData(filterName, raw) {
     share: 1,
     ownership: null,
     investment: false,
+    retirement: false,
     newbuild,
     beds: data.num_bedrooms || 0,
     latitude: data.latitude,

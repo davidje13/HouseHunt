@@ -1,7 +1,7 @@
 import { promisify } from 'util';
 import pg from 'pg';
 import Cursor from 'pg-cursor';
-import { encodeHStore } from './hstore.mjs';
+import { encodeHStore, decodeHStore } from './hstore.mjs';
 
 const DB_URL = process.env.DATABASE_URL || 'postgresql://localhost:5432/house_hunt';
 
@@ -36,6 +36,7 @@ export default class DB {
         ownership TEXT NULL DEFAULT NULL,
         newbuild BOOLEAN NULL DEFAULT NULL,
         investment BOOLEAN NULL DEFAULT NULL,
+        retirement BOOLEAN NULL DEFAULT NULL,
         beds SMALLINT NULL DEFAULT NULL,
         latitude DOUBLE PRECISION NULL DEFAULT NULL,
         longitude DOUBLE PRECISION NULL DEFAULT NULL,
@@ -116,8 +117,22 @@ export default class DB {
   async *getAllBasic() {
     const client = await this.pool.connect();
     try {
-      const cursor = client.query(new Cursor(
-        'SELECT id, latitude, longitude, type, price, share, ownership, newbuild, investment, beds FROM properties WHERE NOT dirty',
+      const cursor = client.query(new Cursor(`
+        SELECT
+          id,
+          latitude,
+          longitude,
+          type,
+          price,
+          share,
+          ownership,
+          newbuild,
+          investment,
+          retirement,
+          beds
+        FROM properties
+        WHERE NOT dirty
+        `,
         [],
         { rowMode: 'array' },
       ));
@@ -129,7 +144,19 @@ export default class DB {
             break;
           }
           for (const item of batch) {
-            yield { id: item[0], lat: item[1], lon: item[2], type: item[3], price: item[4], share: item[5], ownership: item[6], newbuild: item[7], investment: item[8], beds: item[9] };
+            yield {
+              id: item[0],
+              lat: item[1],
+              lon: item[2],
+              type: item[3],
+              price: item[4],
+              share: item[5],
+              ownership: item[6],
+              newbuild: item[7],
+              investment: item[8],
+              retirement: item[9],
+              beds: item[10],
+            };
           }
         }
       } finally {
@@ -140,7 +167,52 @@ export default class DB {
     }
   }
 
-  async recordProcessed(itemId, { listed, type, price, share, ownership, newbuild, investment, beds, latitude, longitude, extracted, thumbnail, image, url }) {
+  async getExtraPropertyDetails(id) {
+    const batch = await this.pool.query({
+      name: 'full_property',
+      rowMode: 'array',
+      text: `
+        SELECT
+          listed,
+          extracted,
+          thumbnail,
+          image,
+          url
+        FROM properties WHERE id=$1
+      `,
+      values: [id],
+    });
+    if (!batch.rows.length) {
+      return null;
+    }
+    const item = batch.rows[0];
+    return {
+      id,
+      listed: item[0],
+      extracted: Object.fromEntries(decodeHStore(item[1])),
+      thumbnail: item[2],
+      image: item[3],
+      url: item[4],
+    };
+  }
+
+  async recordProcessed(itemId, {
+    listed,
+    type,
+    price,
+    share,
+    ownership,
+    newbuild,
+    investment,
+    retirement,
+    beds,
+    latitude,
+    longitude,
+    extracted,
+    thumbnail,
+    image,
+    url,
+  }) {
     await this.pool.query({
       name: 'record_processed',
       text: `
@@ -153,13 +225,14 @@ export default class DB {
           ownership=$6,
           newbuild=$7,
           investment=$8,
-          beds=$9,
-          latitude=$10,
-          longitude=$11,
-          extracted=$12::hstore,
-          thumbnail=$13,
-          image=$14,
-          url=$15
+          retirement=$9,
+          beds=$10,
+          latitude=$11,
+          longitude=$12,
+          extracted=$13::hstore,
+          thumbnail=$14,
+          image=$15,
+          url=$16
         WHERE id=$1
       `,
       values: [
@@ -171,6 +244,7 @@ export default class DB {
         ownership,
         newbuild,
         investment,
+        retirement,
         beds,
         latitude,
         longitude,

@@ -36,6 +36,24 @@ app.get('/api/locations', async (req, res) => {
   }
 });
 
+app.get('/api/locations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    res.header('Content-Type', 'application/json; charset=utf-8');
+    const item = await db.getExtraPropertyDetails(id);
+    if (!item) {
+      res.status(404);
+      res.send(JSON.stringify({ error: 'not found' }));
+      return;
+    }
+    res.send(JSON.stringify(item));
+  } catch (e) {
+    console.error('/api/locations/item failed', e);
+    res.status(500);
+    res.send(JSON.stringify({ error: 'internal error' }));
+  }
+});
+
 const CSP = [
   "base-uri 'self'",
   "default-src 'self'",
@@ -43,7 +61,7 @@ const CSP = [
   "script-src 'self' https://cdn.jsdelivr.net blob:",
   "style-src 'self' https://cdn.jsdelivr.net",
   "connect-src 'self'",
-  "img-src 'self' https://*.tile.openstreetmap.org",
+  "img-src 'self' https://*.tile.openstreetmap.org https://*.zoocdn.com",
   "form-action 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
@@ -56,7 +74,7 @@ app.use(express.static(join(curDir, 'frontend'), {
     res.header('content-security-policy', CSP);
     res.header('referrer-policy', 'no-referrer');
     res.header('cross-origin-opener-policy', 'same-origin');
-    res.header('cross-origin-embedder-policy', 'require-corp');
+    res.header('cross-origin-embedder-policy', 'unsafe-none'); // required to load Zoopla images
   },
 }));
 

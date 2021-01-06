@@ -18,7 +18,7 @@ function getShare(normDesc) {
   if (share1) {
     return Number(share1[1]) * 0.01;
   }
-  const share2 = normDesc.match(/shared? (?:available|of|ownership(?: of)?) ?([0-9]{1,2}) ?(?:%|percent)/i);
+  const share2 = normDesc.match(/share[ds]? (?:of|(?:available|ownership|start)(?: of| at| from)?) ?([0-9]{1,2}) ?(?:%|percent)/i);
   if (share2) {
     return Number(share2[1]) * 0.01;
   }
@@ -34,11 +34,7 @@ export function patchFromDescription(details, description) {
     .replace(/[^a-zA-Z0-9%]+/g, ' ');
 
   if (details.type === 'unknown') {
-    if (/boat/i.test(normDesc)) {
-      details.type = 'boat';
-    } else if (/mobile/i.test(normDesc)) {
-      details.type = 'mobile';
-    } else if (/cottage/i.test(normDesc)) {
+    if (/cottage/i.test(normDesc)) {
       details.type = 'holiday_cottage';
     } else if (/lodge/i.test(normDesc)) {
       details.type = 'holiday_lodge';
@@ -48,11 +44,9 @@ export function patchFromDescription(details, description) {
       details.type = 'holiday_villa';
     } else if (/office space/i.test(normDesc)) {
       details.type = 'business_office';
-    } else if (/studio (flat|appartment)/i.test(normDesc)) {
+    } else if (/studio (flat|\bappt\b|app?artment)/i.test(normDesc)) {
       details.type = 'flat_studio';
-    } else if (/appartment/i.test(normDesc)) {
-      details.type = 'flat';
-    } else if (/penthouse/i.test(normDesc)) {
+    } else if (/(\bappt\b|app?artment|pent ?house)/i.test(normDesc)) {
       details.type = 'flat';
     } else if (/semi ?detached/i.test(normDesc)) {
       details.type = 'house_semi_detached';
@@ -62,7 +56,13 @@ export function patchFromDescription(details, description) {
       details.type = 'house_end_terrace';
     } else if (/terraced?/i.test(normDesc)) {
       details.type = 'house_terraced';
-    } else if (/(land|acre)?/i.test(normDesc)) {
+    } else if (/boat/i.test(normDesc)) {
+      details.type = 'boat';
+    } else if (/\bflat\b/i.test(normDesc)) {
+      details.type = 'flat';
+    } else if (/mobile/i.test(normDesc)) {
+      details.type = 'mobile';
+    } else if (/\b(land|[0-9]*acres?)\b/i.test(normDesc)) {
       details.type = 'land';
     }
   }
@@ -77,7 +77,7 @@ export function patchFromDescription(details, description) {
 
   if (
     /(current(ly)?|fully) tenanted/i.test(normDesc) ||
-    /investment( purposes)? (only|property|house|flat|appartment)/i.test(normDesc) ||
+    /investment( purposes)? (only|property|house|flat|\bappt\b|app?artment)/i.test(normDesc) ||
     /tenanted to/i.test(normDesc)
   ) {
     details.investment = true;
@@ -86,13 +86,17 @@ export function patchFromDescription(details, description) {
   if (!details.ownership) {
     if (/shared?( of)?( the)? free ?hold/i.test(normDesc) || /free ?hold( is)? share/i.test(normDesc)) {
       details.ownership = 'freehold_share';
-    } else if (/lease ?hold/i.test(normDesc)) {
+    } else if (/lease ?hold/i.test(normDesc) || /(lease|term) [0-9]+ years?/i.test(normDesc)) {
       details.ownership = 'leasehold';
     } else if (/free ?hold/i.test(normDesc)) {
       details.ownership = 'freehold';
     } else if (details.type.startsWith('flat')) {
       details.ownership = 'leasehold';
     }
+  }
+
+  if (/(over [0-9]+s?|retirement) (only|flat)/i.test(normDesc)) {
+    details.retirement = true;
   }
 
   if (details.type.startsWith('flat')) {
