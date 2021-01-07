@@ -28,11 +28,11 @@ function saveState(areaSource) {
   if (area) {
     savedValues.append('area', coordsToHash(area.getCoordinates(), 0));
   }
-  document.location.hash = savedValues.toString();
+  window.location.hash = savedValues.toString();
 }
 
 function loadState(areaSource) {
-  const initial = new Map(new URLSearchParams(document.location.hash.substr(1)));
+  const initial = new Map(new URLSearchParams(window.location.hash.substr(1)));
   for (const input of filters.querySelectorAll('input,select')) {
     const initialValue = initial.get(input.getAttribute('name'));
     if (initialValue !== undefined) {
@@ -139,7 +139,6 @@ filters.addEventListener('submit', (e) => {
   e.preventDefault();
   refreshFilters();
 });
-loadState(areaSource);
 
 let allItems = [];
 let filteredItems = [];
@@ -159,8 +158,10 @@ function updateFilter(filter, minPrice, maxPrice, normaliseSharedPrice) {
   debouncedMapUpdate = setTimeout(() => replaceMapItems(filteredItems), 300);
 }
 
-function refreshFilters() {
-  saveState(areaSource);
+function refreshFilters(save = true) {
+  if (save) {
+    saveState(areaSource);
+  }
 
   const minPrice = Number(filters.querySelector('[name="price-min"]').value || '0');
   const maxPrice = Number(filters.querySelector('[name="price-max"]').value || 'Infinity');
@@ -377,10 +378,21 @@ map.on('click', (e) => {
   overlay.setPosition(geometry.getCoordinates());
 });
 
+loadState(areaSource);
+let lastHash = window.location.hash;
+window.addEventListener('hashchange', () => {
+  const hash = window.location.hash;
+  if (hash !== lastHash) {
+    lastHash = hash;
+    loadState(areaSource);
+    refreshFilters(false);
+  }
+});
+
 fetch('/api/locations')
   .then((d) => d.json())
   .then((d) => {
     allItems = d.items.map((item) => ({ ...item, olProj: ol.proj.fromLonLat([item.lon, item.lat]) }));
-    refreshFilters();
+    refreshFilters(false);
   })
   .catch((e) => console.error('Failed to load items', e));
