@@ -249,6 +249,118 @@ const overlay = new ol.Overlay({
   },
 });
 
+const modify = new ol.interaction.Modify({
+  source: areaSource,
+  style: new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 4,
+      fill: new ol.style.Fill({
+        color: '#3377FF',
+      }),
+      stroke: new ol.style.Stroke({
+        color: '#FFFFFF',
+        width: 1,
+      }),
+    }),
+  }),
+  deleteCondition: (e) => ol.events.condition.doubleClick(e) || (ol.events.condition.singleClick(e) && ol.events.condition.altKeyOnly(e)),
+});
+modify.on('modifyend', () => {
+  setTimeout(() => {
+    refreshFilters();
+  }, 0);
+});
+
+const draw = new ol.interaction.Draw({
+  source: areaSource,
+  type: 'Polygon',
+  style: [
+    new ol.style.Style({
+      fill: new ol.style.Fill({
+        color: 'rgba(255, 255, 255, 0.05)',
+      }),
+      stroke: new ol.style.Stroke({
+        color: 'rgba(255, 255, 255, 0.5)',
+        width: 4,
+      }),
+    }),
+    new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: '#3377FF',
+        width: 2,
+      }),
+    }),
+  ],
+});
+draw.on('drawstart', () => {
+  selectProperty.setActive(false);
+});
+draw.on('drawend', () => {
+  areaSource.clear(); // remove old lines if any
+  // delay so that it can store the result and block the double-click-to-zoom event
+  setTimeout(() => {
+    selectProperty.setActive(true);
+    draw.setActive(false);
+    refreshFilters();
+  }, 0);
+});
+draw.on('drawabort', () => {
+  selectProperty.setActive(true);
+});
+
+const selectProperty = new ol.interaction.Interaction({
+  handleEvent: (e) => {
+    // TODO: interaction.Draw does its own click detection using pointerdown/pointerup, rather than click events
+    // this means that interaction.Draw always "wins"
+    // the only fix seems to be to do the same, but then we would prevent Draw knowing that the mouse was released, which might get weird
+    // (we could do our own click detect and set a flag which is checked in Draw.condition?)
+    // For now, it is not possible to select a property until an area has been defined (Draw is removed once area is added)
+    // (a similar OpenLayers bug means that Draw never allows double-click-to-zoom to run)
+    if (!ol.events.condition.click(e) || !ol.events.condition.noModifierKeys(e)) {
+      return true;
+    }
+
+    const features = map.getFeaturesAtPixel(e.pixel, { layerFilter: (l) => l === nearPointLayer });
+    if (!features.length) {
+      if (!overlay.getPosition()) {
+        return true;
+      }
+      overlay.setPosition(undefined);
+      return false;
+    }
+    // webglpointlayer hit test is only capable of returning 1 match...
+    const { id, geometry } = features[0].getProperties();
+    const details0 = filteredItems.find((i) => i.id === id);
+    if (!details0) {
+      console.warn(`Failed to find property details for ${id}`);
+      return false;
+    }
+    // ...but we find nearby items to show as well
+    const details = filteredItems.filter((i) => ((i.lat - details0.lat) ** 2 + (i.lon - details0.lon) ** 2 < 0.0001 ** 2));
+
+    overlayBox.innerText = '';
+    details.forEach((detail) => {
+      const container = make('li');
+      container.appendChild(renderCard(detail));
+      if (!detail.full) {
+        fetch(`/api/locations/${encodeURIComponent(id)}`)
+          .then((d) => d.json())
+          .then((d) => {
+            Object.assign(detail, d);
+            detail.full = true;
+            container.innerText = '';
+            container.appendChild(renderCard(detail));
+            overlay.setPosition(geometry.getCoordinates());
+          })
+          .catch((e) => console.warn(`Failed to load full property details for ${id}`, e));
+      }
+      overlayBox.appendChild(container);
+    });
+    overlay.setPosition(geometry.getCoordinates());
+    return false;
+  },
+});
+
 const map = new ol.Map({
   target: 'map',
   moveTolerance: 3,
@@ -278,6 +390,11 @@ const map = new ol.Map({
   overlays: [
     overlay,
   ],
+  interactions: ol.interaction.defaults().extend([
+    modify,
+    draw,
+    selectProperty,
+  ]),
   view: new ol.View({
     center: ol.proj.fromLonLat([-3.44, 55.38]),
     zoom: 5.5,
@@ -285,109 +402,22 @@ const map = new ol.Map({
   }),
 });
 
-const modify = new ol.interaction.Modify({
-  source: areaSource,
-  style: new ol.style.Style({
-    image: new ol.style.Circle({
-      radius: 4,
-      fill: new ol.style.Fill({
-        color: '#3377FF',
-      }),
-      stroke: new ol.style.Stroke({
-        color: '#FFFFFF',
-        width: 1,
-      }),
-    }),
-  }),
-  deleteCondition: (e) => ol.events.condition.doubleClick(e) || (ol.events.condition.singleClick(e) && ol.events.condition.altKeyOnly(e)),
-});
-modify.on('modifyend', () => {
-  setTimeout(() => {
-    refreshFilters();
-  }, 0);
-});
-const draw = new ol.interaction.Draw({
-  source: areaSource,
-  type: 'Polygon',
-  style: [
-    new ol.style.Style({
-      fill: new ol.style.Fill({
-        color: 'rgba(255, 255, 255, 0.05)',
-      }),
-      stroke: new ol.style.Stroke({
-        color: 'rgba(255, 255, 255, 0.5)',
-        width: 4,
-      }),
-    }),
-    new ol.style.Style({
-      stroke: new ol.style.Stroke({
-        color: '#3377FF',
-        width: 2,
-      }),
-    }),
-  ],
-});
-
-map.addInteraction(modify);
-if (!areaSource.getFeatures().length) {
-  map.addInteraction(draw);
-  draw.on('drawend', () => {
-    areaSource.clear(); // remove old lines if any
-    // delay so that it can store the result and block the double-click-to-zoom event
-    setTimeout(() => {
-      map.removeInteraction(draw);
-      refreshFilters();
-    }, 0);
-  });
+function applyState() {
+  loadState(areaSource);
+  refreshFilters(false);
+  draw.setActive(areaSource.getFeatures().length === 0);
 }
 
-map.on('click', (e) => {
-  const features = map.getFeaturesAtPixel(e.pixel, { layerFilter: (l) => l === nearPointLayer });
-  if (!features.length) {
-    overlay.setPosition(undefined);
-    return;
-  }
-  // webglpointlayer hit test is only capable of returning 1 match...
-  const { id, geometry } = features[0].getProperties();
-  const details0 = filteredItems.find((i) => i.id === id);
-  if (!details0) {
-    console.warn(`Failed to find property details for ${id}`);
-    return;
-  }
-  // ...but we find nearby items to show as well
-  const details = filteredItems.filter((i) => ((i.lat - details0.lat) ** 2 + (i.lon - details0.lon) ** 2 < 0.0001 ** 2));
-
-  overlayBox.innerText = '';
-  details.forEach((detail) => {
-    const container = make('li');
-    container.appendChild(renderCard(detail));
-    if (!detail.full) {
-      fetch(`/api/locations/${encodeURIComponent(id)}`)
-        .then((d) => d.json())
-        .then((d) => {
-          Object.assign(detail, d);
-          detail.full = true;
-          container.innerText = '';
-          container.appendChild(renderCard(detail));
-          overlay.setPosition(geometry.getCoordinates());
-        })
-        .catch((e) => console.warn(`Failed to load full property details for ${id}`, e));
-    }
-    overlayBox.appendChild(container);
-  });
-  overlay.setPosition(geometry.getCoordinates());
-});
-
-loadState(areaSource);
 let lastHash = window.location.hash;
 window.addEventListener('hashchange', () => {
   const hash = window.location.hash;
   if (hash !== lastHash) {
     lastHash = hash;
-    loadState(areaSource);
-    refreshFilters(false);
+    applyState();
   }
 });
+
+applyState();
 
 fetch('/api/locations')
   .then((d) => d.json())
